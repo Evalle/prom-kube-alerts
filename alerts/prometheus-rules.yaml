@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  kubernetes.rules.yaml: |+
+    groups:
+    - name: kubernetes.rules
+      rules:
+      - alert: "K8S Tiller-Deploy has too many restarts"
+        expr: kube_pod_container_status_restarts{namespace='kube-system',pod=~'^tiller-deploy.*'} > 10
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          description: There are more than 10 restarts of Tiller Deploy pod in the last 30 minutes
+          runbook: https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/
+          summary: Kubernetes DNS has too many restarts
+      - alert: "K8S Tiller-Deploy has critical number of replicas"
+        expr: kube_deployment_status_replicas_available{namespace='kube-system',deployment='tiller-deploy'} < 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          description: There are 0 replicas of TillerDeploy
+          runbook: https://kubernetes.io/docs/tasks/debug-application-cluster/debug-pod-replication-controller/
+          summary: Kubernetes DNS has not enough replicas
+    - name: cpu-usage.rules
+      rules:
+      - alert: "NodeCPUUsage"
+        expr: (100 - (avg by (instance) (irate(node_cpu{name="node-exporter",mode="idle"}[5m])) * 100)) > 75
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          description: "{{ $labels.instance }}: CPU usage is above 75% (current value is: {{ $value }})"
+          summary: "{{ $labels.instance }}: High CPU usage detected"
+    - name: load-average.rules
+      rules:
+      - alert: "NodeLoadAverage"
+        expr: ((node_load5 / count without (cpu, mode) (node_cpu{mode="system"})) > 1)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          description: "{{$labels.instance}}: Load Average is high"
+          summary: "{{ $labels.instance }}: High Load Aaverage detected"
+    - name: mem-usage.rules
+      rules:
+      - alert: "NodeSwapUsage"
+        expr: (((node_memory_SwapTotal-node_memory_SwapFree)/node_memory_SwapTotal)*100) > 75
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          description: "{{ $labels.instance} }: Swap usage usage is above 75% (current value is: {{ $value }})"
+          summary: "{{ $labels.instance }}: Swap usage detected"
+      - alert: "NodeMemoryUsage"
+        expr: (((node_memory_MemTotal-node_memory_MemFree-node_memory_Cached)/(node_memory_MemTotal)*100)) > 75
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          description: "{{ $labels.instance }}: Memory usage is above 75% (current value is: {{ $value }})"
+          summary: "{{ labels.instance }}: High memory usage detected"
